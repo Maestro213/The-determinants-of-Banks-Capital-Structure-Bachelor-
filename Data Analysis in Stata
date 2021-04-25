@@ -1,0 +1,54 @@
+import excel "C:\Users\Kirill\Desktop\FB DAta\Prep\Cleared Data on Banks capital structure and other.xls", sheet("Allvar") firstrow clear
+
+reshape long market_cap div assets liabilities equity tot_customer_deposits tot_fin_assets_securities cashbalances_wht_cb fixed_assets other_assets risk tier1_ratio crisis_dummy net_income interest_expense other_wholesale_deposits_ prefered_stock bankruptcy miller_tax tax_system Governmentguaranteesonbankde creditorrights commonlawsystem CPIScore GDP_growth inflation HDI Stockmarketcapitalizationasp Numberofcompanieslistedonth SavingsaspercentofGDP SavingsbillionUSD public_bondGPD, i(name) j(year)
+
+gen mv_assets = market_cap + liabilities,after(year)
+gen mtb = mv_assets/assets, after(mv_assets)
+gen b_leverage = 1-(equity/assets),after(mtb)
+gen m_leverage = 1-(market_cap/mv_assets),after(b_leverage)
+gen b_deposit = tot_customer_deposits/assets,after(m_leverage)
+gen m_deposit = tot_customer_deposits/mv_assets,after(b_deposit)
+gen b_ndeposit = b_leverage-b_deposit,after(m_deposit)
+gen m_ndeposit = m_leverage-m_deposit,after(b_ndeposi)
+gen n_income = real(net_income), after(b_ndeposi)
+gen ln_comp = ln( Numberofcompanieslistedonth),after(n_income)
+gen tierone = tier1_ratio/100,after(ln_comp)
+drop net_income
+gen profit = (interest_expense+ profit_bf_tax)/assets,after(tierone)
+summ b_leverage m_leverage b_deposit m_deposit b_ndeposit m_ndeposit profit
+sort id year
+egen country_id = group(country)
+gen cpi = 10-CPIScore, after(CPIScore)
+by id:gen lag_mtb = mtb[_n-1],after(profit)
+by id:gen lag_size = size[_n-1],after(lag_mtb)
+by id:gen lag_profit = profit_heider[_n-1],after(lag_size)
+by id:gen lag_collateral = collateral[_n-1],after(lag_profit)
+by id:gen lag_div = div_b[_n-1],after(lag_collateral)
+by id:gen lag_risk = risk_h[_n-1],after(lag_div)
+by id:gen lag_tierone = tierone[_n-1],after(profit),lag_risk
+
+
+xtreg m_leverage lag_mtb lag_size lag_profit lag_collateral lag_div lag_risk i.year, fe
+xtreg b_leverage lag_mtb lag_size lag_profit lag_collateral lag_div lag_risk i.year, fe
+regress m_deposit lag_mtb lag_size lag_profit lag_collateral lag_div lag_risk crisis_dummy  miller_tax lag_GDPgrwht lag_inflation lag_lgcomp lag_savings lag_cpi lag_hdi lag_stmarket tax_system Governmentguaranteesonbankde creditorrights commonlawsystem i.year
+
+regress m_n_deposit lag_mtb lag_size lag_profit lag_collateral lag_div lag_risk crisis_dummy  miller_tax lag_GDPgrwht lag_inflation lag_lgcomp lag_savings lag_cpi lag_hdi lag_stmarket tax_system Governmentguaranteesonbankde creditorrights commonlawsystem i.year
+
+gen byte close = 1 if tierone >= 0.08 & tierone !=.
+replace close =0 if tierone < 0.08 & tierone !=.
+gen byte median_close = 1 if tierone >= 0.1275 & tierone !=.
+replace median_close =0 if tierone < 0.1275 & tierone !=.
+
+gen c1_mtb = close*lag_mtb
+gen c1_profit = close*lag_profit
+gen c1_size = close*lag_size
+gen c1_div = close*lag_div
+gen c1_risk = close*lag_risk
+gen c1_collateral = close*lag_collateral
+
+gen c2_mtb = median_close*lag_mtb
+gen c2_profit = median_close*lag_profit
+gen c2_size = median_close*lag_size
+gen c2_div = median_close*lag_div
+gen c2_risk = median_close*lag_risk
+gen c2_collateral = median_close*lag_collateral
